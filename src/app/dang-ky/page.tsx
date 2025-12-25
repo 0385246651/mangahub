@@ -62,7 +62,14 @@ export default function RegisterPage() {
       router.push("/");
     } catch (err: unknown) {
       if (err instanceof Error) {
-        setError(err.message);
+        // Check for popup-blocked error
+        if (err.message.includes("popup") || err.message.includes("blocked")) {
+          setError("Trình duyệt đã chặn cửa sổ đăng nhập. Vui lòng cho phép popup hoặc thử lại.");
+        } else if (err.message.includes("cancelled") || err.message.includes("closed")) {
+          setError("Đăng nhập đã bị hủy.");
+        } else {
+          setError(err.message);
+        }
       } else {
         setError("Đăng nhập với Google thất bại.");
       }
