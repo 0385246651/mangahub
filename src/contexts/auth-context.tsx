@@ -15,6 +15,8 @@ import {
   signOut as firebaseSignOut,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   updateProfile,
 } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
@@ -60,6 +62,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Handle redirect result for mobile Google sign-in
+  useEffect(() => {
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result?.user) {
+          await saveUserToFirestore(result.user);
+        }
+      })
+      .catch((error) => {
+        console.error("Redirect sign-in error:", error);
+      });
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
@@ -91,7 +106,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+
+    // Detect mobile device
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    if (isMobile) {
+      // Use redirect for mobile (popup is often blocked)
+      await signInWithRedirect(auth, provider);
+    } else {
+      // Use popup for desktop with fallback to redirect
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (error: unknown) {
+        // Fallback to redirect if popup is blocked
+        if (error instanceof Error && error.message.includes("popup")) {
+          await signInWithRedirect(auth, provider);
+        } else {
+          throw error;
+        }
+      }
+    }
   };
 
   const signOut = async () => {
